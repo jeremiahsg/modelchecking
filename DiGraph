@@ -1,2 +1,2 @@
 class DiGraph:
-	
+	def __init__:
