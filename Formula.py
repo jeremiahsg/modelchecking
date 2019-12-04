@@ -242,3 +242,7 @@ class Closure:
     
     def __str__(self):
         return str({(str(x),x.depth) for x in self.closure})
+    
+# 以下为示例
+a = constructAFormula('( not ( a and ( b or c ) ) ) ')
+print(Closure(a))
