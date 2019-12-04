@@ -11,7 +11,7 @@ class Formula:
         # 获得全部的子公式，返回一个表格
         return self.subformulas
     
-    def subfomula(self,i):
+    def subformula(self,i):
         # 获得某一个子公式，返回一个Formula 类的实例对象
         if not self.subformulas:
             raise FormulaError('This formula doesnot have subformula.')
