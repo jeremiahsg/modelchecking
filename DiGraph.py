@@ -50,3 +50,4 @@ class DiGraph:
 
 	def outEdges(self, head):
 		return self.vertList[head].connectedTo.keys()
+	
