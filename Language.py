@@ -4,7 +4,7 @@ class FormulaError(ValueError):
     pass
 
 class Formula:
-    def __init__(self,subformulas = []):
+    def __init__(self,subformulas):# = []):
         self.subformulas = [x.simplified() for x in subformulas]
         
     def getSubformulas(self):
@@ -61,7 +61,8 @@ class And(Formula):
     def __init__(self,subformula1,subformula2):
         assert isinstance(subformula1,Formula)
         assert isinstance(subformula2,Formula)
-        self.subformulas = [subformula1,subformula2]
+        self.subformulas = [subformula1.simplified(),
+                            subformula2.simplified()]
         self.depth = max(subformula1.depth,
                         subformula2.depth) + 1
         
@@ -80,7 +81,8 @@ class Or(Formula):
     def __init__(self,subformula1,subformula2):
         assert isinstance(subformula1,Formula)
         assert isinstance(subformula2,Formula)
-        self.subformulas = [subformula1,subformula2]
+        self.subformulas = [subformula1.simplified(),
+                            subformula2.simplified()]
         self.depth = max(subformula1.depth,
                         subformula2.depth) + 1
         
@@ -92,14 +94,14 @@ class Or(Formula):
                 + str(self.subformulas[1])+' )')
     
     def simplified(self):
-        return And(self.subformulas[0],
+        return Or(self.subformulas[0],
                   self.subformulas[1])
     
 class Not(Formula):
     def __init__(self,subformula1):
         assert isinstance(subformula1,Formula)
-        self.subformulas = [subformula1]
-        self.depth = subformula1.depth + 1
+        self.subformulas = [subformula1.simplified()]
+        self.depth = subformula1.depth
         # not 这里应该涉及到双重否定的简化问题
         
     def isAState(self):
@@ -119,7 +121,7 @@ class Not(Formula):
 class Next(Formula):
     def __init__(self,subformula1):
         assert isinstance(subformula1,Formula)
-        self.subformulas = [subformula1]
+        self.subformulas = [subformula1.simplified()]
         self.depth = subformula1.depth + 1
         
     def isAState(self):
@@ -129,13 +131,14 @@ class Next(Formula):
         return 'next (' + str(self.subformulas[0]) + ')'
     
     def simplified(self):
-        return Next(subformulas[0])
+        return Next(self.subformulas[0])
     
 class Until(Formula):
     def __init__(self,subformula1,subformula2):
         assert isinstance(subformula1,Formula)
         assert isinstance(subformula2,Formula)
-        self.subformulas = [subformula1,subformula2]
+        self.subformulas = [subformula1.simplified(),
+                            subformula2.simplified()]
         self.depth = max(subformula1.depth,
                         subformula2.depth) + 1
         
@@ -211,38 +214,107 @@ def constructAFormula(string):
 class ClosureError(ValueError):
     pass
 
-class Closure:
-    def __init__(self,formula):
-        if not isinstance(formula,Formula):
-            raise ClosureError(formula,'is not a formula.')
-        self.closure = self.constructAClosure(formula)
-        
-    def constructAClosure(self,formula):
-        queue = SQueue()
-        closure = set()
-        queue.enqueue(formula)
-        while not queue.is_empty():
-            crf = queue.dequeue().simplified()
-            # crf for current formula
-            if isinstance(crf,Not):
-                crf = crf.subformulas[0]
-            if not crf in closure:
-                closure.add(crf.simplified())
-                closure.add(Not(crf).simplified())
-                if (isinstance(crf,State) or
-                    isinstance(crf,Bools)):
-                    continue
-                elif (isinstance(crf,Not) or
-                      isinstance(crf,Next)):
-                    queue.enqueue(crf.subformulas[0])
-                else:
-                    queue.enqueue(crf.subformulas[0])
-                    queue.enqueue(crf.subformulas[1])
-        return closure
+def constructAClosure(formula):
+    queue = SQueue()
+    closure = set()
+    queue.enqueue(formula)
+    while not queue.is_empty():
+        crf = queue.dequeue()
+        if isinstance(crf,Not):
+            crf, negativecrf = crf.subformulas[0],crf
+        negativecrf = Not(crf)
+        # crf for current formula
+        if not crf in closure:
+            closure.add(crf)
+            closure.add(negativecrf)
+            if (isinstance(crf,State) or
+                isinstance(crf,Bools)):
+                continue
+            elif (isinstance(crf,Not) or
+                    isinstance(crf,Next)):
+                queue.enqueue(crf.subformulas[0])
+            else:
+                queue.enqueue(crf.subformulas[0])
+                queue.enqueue(crf.subformulas[1])
+    return closure
     
-    def __str__(self):
-        return str({(str(x),x.depth) for x in self.closure})
+    
+def constructElementarySet(closure):
+    elementarySet = []
+    states = set()
+    for sub in sorted(list(closure),key = lambda x:x.depth):
+        if isinstance(sub,State):
+            states.add(sub)
+    print([str(x) for x in states])
+    for x in states:
+        a = set()
+        a.add(x)
+        elementarySet.append(a)
+    printElementarySet(elementarySet)
+    for sub in sorted(list(closure),key = lambda x:x.depth):
+        appendix = []
+        if isinstance(sub,State):
+            for atomSet in elementarySet:
+                if sub not in atomSet:
+                    atomSet.add(Not(sub))
+        #if sub == False or sub == Not(True) 这里需要在Not里面进一步简化，
+        # 保证没有Not(True)出现
+        elif isinstance(sub,Bools):
+            if sub.value == True:
+                for atomSet in elementarySet:
+                    atomSet.add(sub)
+        elif isinstance(sub,Not):
+            continue
+        elif isinstance(sub,And):
+            for atomSet in elementarySet:
+                if (sub.subformulas[0] in atomSet and
+                    sub.subformulas[1] in atomSet):
+                    atomSet.add(sub)
+                else:
+                    atomSet.add(Not(sub))
+        elif isinstance(sub,Or):
+            for atomSet in elementarySet:
+                if (sub.subformulas[0] in atomSet or
+                   sub.subformulas[1] in atomSet):
+                    atomSet.add(sub)
+                else:
+                    atomSet.add(Not(sub))
+        elif isinstance(sub,Next):
+            for atomSet in elementarySet:
+                appendix.append(atomSet|{Not(sub)})
+                atomSet.add(sub)
+        elif isinstance(sub,Until):
+            a, b = sub.subformulas[0],sub.subformulas[1]
+            for atomSet in elementarySet:
+                if b in atomSet:
+                    atomSet.add(sub)
+                elif a in atomSet:
+                    appendix.append(atomSet|{Not(sub)})
+                    atomSet.add(sub)
+                else:
+                    atomSet.add(Not(sub))
+        else:
+            raise ClosureError('Contradiction in this closure.')
+        elementarySet.extend(appendix)
+        printElementarySet(elementarySet)
+    return elementarySet
+                
+def printElementarySet(elementarySet):
+    print('{')
+    for atomSet in elementarySet:
+        if atomSet:
+            print({str(x) for x in atomSet})
+        else:
+            print('{}')
+    print('}')
+    
     
 # 以下为示例
-a = constructAFormula('( not ( a and ( b or c ) ) ) ')
-print(Closure(a))
+a = constructAFormula(' ( a U ( ( not ( not ( not b ) ) ) or c ) ) ')
+print(a)
+f = constructAClosure(a)
+print([(str(x),x.depth) for x in sorted(
+    list(f),
+        key = lambda x: x.depth)])
+
+constructElementarySet(f)
