@@ -1,9 +1,8 @@
 class DiGraphError(ValueError):
-    pass
-
+	pass
 
 class Vertex:
-	def __init__(self, name):
+	def __init__(self,name):
 		# name是一个字符串
 		self.state = name
 
@@ -12,7 +11,6 @@ class Vertex:
 
 	def __hash__(self):
 		return hash(str(self.state))
-
 
 class DiGraph:
 	def __init__(self, vertexs=[], edges=[]):
@@ -179,8 +177,8 @@ class DiGraph:
 		return DiGraph(RGvertexs,RGedges)
 #返回的是原图边反向得到的新图
 
-	def subGraph(self, chosenvertexs):
-		#chosenvertexs是原图中部分顶点的集合或列表
+	def subGraph1(self, chosenvertexs):
+		#chosenvertexs是原图中部分顶点的列表
 		SGvertexs = self.getVertexs().copy()
 		SGedges = []
 		for edge in self.edges:
@@ -188,3 +186,13 @@ class DiGraph:
 				SGedges.append(edge)
 		return DiGraph(SGvertexs,SGedges)
 #返回的是顶点和原图相同，所有边起点在chosenvertexs中的子图
+
+	def subGraph2(self, chosenvertexs):
+		#chosenvertexs是部分顶点的列表
+		SGvertexs = chosenvertexs
+		SGedges = []
+		for edge in self.edges:
+			if edge[0] in SGvertexs and edge[1] in SGvertexs:
+				SGedges.append(edge)
+		return DiGraph(SGvertexs, SGedges)
+#返回的图是顶点集为所选列表，边集为两端都在顶点集中的边
